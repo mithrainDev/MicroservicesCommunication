@@ -2,22 +2,19 @@ using System.ComponentModel.DataAnnotations;
 
 namespace PlatformService.Models
 {
-    public class Platform
+    public class Customer
     {
         [Key]
         [Required]
         public int Id { get; set; }
 
         [Required]
-        public string Name { get; set; }
+        public string FirstName { get; set; }
 
         [Required]
-        public string Publisher { get; set; }
-
-        [Required]
-        public string Cost { get; set; }
+        public string LastName { get; set; }
         
         [Required]
-        public int CustomerId { get; set; }
+        public string Email { get; set; }
     }
 }

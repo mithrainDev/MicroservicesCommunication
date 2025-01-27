@@ -19,17 +19,20 @@ namespace PlatformService.Controllers
         private readonly IMapper _mapper;
         private readonly ICommandDataClient _commandDataClient;
         private readonly IMessageBusClient _messageBusClient;
+        private readonly ICustomerRepo _customerRepo;
 
         public PlatformsController(
-            IPlatformRepo repository, 
+            IPlatformRepo repository,
             IMapper mapper,
             ICommandDataClient commandDataClient,
-            IMessageBusClient messageBusClient)
+            IMessageBusClient messageBusClient,
+            ICustomerRepo customerRepo)
         {
             _repository = repository;
             _mapper = mapper;
             _commandDataClient = commandDataClient;
             _messageBusClient = messageBusClient;
+            _customerRepo = customerRepo;
         }
 
         [HttpGet]
@@ -55,9 +58,14 @@ namespace PlatformService.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult<PlatformReadDto>> CreatePlatform(PlatformCreateDto platformCreateDto)
+        public async Task<ActionResult<PlatformReadDto>> CreatePlatform(PlatformCreateDto platformCreateDto,
+            string customerEmail)
         {
+            var customer = _customerRepo.FindByEmail(customerEmail);
+
             var platformModel = _mapper.Map<Platform>(platformCreateDto);
+            platformModel.CustomerId = customer.Id;
+
             _repository.CreatePlatform(platformModel);
             _repository.SaveChanges();
 
@@ -68,24 +76,43 @@ namespace PlatformService.Controllers
             {
                 await _commandDataClient.SendPlatformToCommand(platformReadDto);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Console.WriteLine($"--> Could not send synchronously: {ex.Message}");
             }
 
-            //Send Async Message
-            try
+            // Send Async Message with retries
+            var platformPublishedDto = _mapper.Map<PlatformPublishedDto>(platformReadDto);
+            platformPublishedDto.Event = "Platform_Published";
+
+            const int maxRetries = 5;
+            var retryCount = 0;
+            var delay = 1000;
+
+            while (retryCount < maxRetries)
             {
-                var platformPublishedDto = _mapper.Map<PlatformPublishedDto>(platformReadDto);
-                platformPublishedDto.Event = "Platform_Published";
-                _messageBusClient.PublishNewPlatform(platformPublishedDto);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"--> Could not send asynchronously: {ex.Message}");
+                try
+                {
+                    _messageBusClient.PublishNewPlatform(platformPublishedDto);
+                    Console.WriteLine("--> Async message sent successfully.");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    retryCount++;
+                    Console.WriteLine($"--> Attempt {retryCount} failed to send async message: {ex.Message}");
+
+                    if (retryCount == maxRetries)
+                    {
+                        throw new Exception($"--> Could not send async message after {maxRetries} attempts.", ex);
+                    }
+
+                    await Task.Delay(delay);
+                    delay *= 2;
+                }
             }
 
-            return CreatedAtRoute(nameof(GetPlatformById), new { Id = platformReadDto.Id}, platformReadDto);
+            return CreatedAtRoute(nameof(GetPlatformById), new { Id = platformReadDto.Id }, platformReadDto);
         }
     }
 }

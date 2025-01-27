@@ -11,5 +11,7 @@ namespace PlatformService.Data
         }
 
         public DbSet<Platform> Platforms { get; set; }
+        
+        public DbSet<Customer> Customers { get; set; }
     }
 }

@@ -49,6 +49,7 @@ namespace PlatformService
             }
 
             services.AddScoped<IPlatformRepo, PlatformRepo>();
+            services.AddScoped<ICustomerRepo, CustomerRepo>();
 
             services.AddHttpClient<ICommandDataClient, HttpCommandDataClient>();
             services.AddSingleton<IMessageBusClient, MessageBusClient>();
