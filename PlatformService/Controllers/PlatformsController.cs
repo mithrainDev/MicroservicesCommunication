@@ -78,7 +78,6 @@ namespace PlatformService.Controllers
                         LastName = "Mock Name", // Mock data
                     };
                     _context.Customers.Add(customer);
-                    await _context.SaveChangesAsync();
                 }
 
                 // Create the platform
